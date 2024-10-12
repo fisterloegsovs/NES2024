@@ -1,6 +1,7 @@
 # flow_simulation.py
 import networkx as nx
-from delay_calculations import calculate_dPQ_TX, calculate_dTX_DQ, calculate_dDQ_SO
+# Betim - Det er noget anders har importet så tænker ikke det er relevant da der ikke er noget i filen
+# from delay_calculations import calculate_dPQ_TX, calculate_dTX_DQ, calculate_dDQ_SO
 import time
 import csv
 
@@ -10,7 +11,7 @@ def build_graph():
     # Read from the small_topology.csv file
     with open('small-topology.csv', 'r') as f:
         reader = csv.reader(f)
-        for row in reader:
+        for row in reader: 
             if row[0] == 'SW':  # Switch
                 # Add switch as a node
                 G.add_node(row[1])
