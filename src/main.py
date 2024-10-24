@@ -3,8 +3,8 @@ import queue
 
 # First parse the small_streams.csv and then the small_topology.csv files.
 
-small_streams_csv = 'small-streams.csv'
-small_topology_csv = 'small-topology.csv'
+small_streams_csv = 'small-streams.v2.csv'
+small_topology_csv = 'small-topology.v2.csv'
 
 small_streams_fields = ['PCP', 'StreamName', 'StreamType', 'SourceNode', 'DestinationNode', 'Size', 'Period', 'Deadline']
 

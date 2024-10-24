@@ -8,8 +8,8 @@ import csv
 def build_graph():
     G = nx.Graph()
     
-    # Read from the small_topology.csv file
-    with open('small-topology.csv', 'r') as f:
+    # Read from the small_topology.v2.csv file
+    with open('small-topology.v2.csv', 'r') as f:
         reader = csv.reader(f)
         for row in reader: 
             if row[0] == 'SW':  # Switch
