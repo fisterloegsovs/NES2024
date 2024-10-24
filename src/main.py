@@ -49,9 +49,9 @@ for stream in small_streams:
 
     if pcp == 0:
         q = get_create_queue(queue_ready, source)
-    elif pcp == 1:
+    elif pcp == 6:
         q = get_create_queue(queue_high, source)
-    elif pcp == 2:
+    elif pcp == 7:
         q = get_create_queue(queue_low, source)
     q.put(stream)
 
