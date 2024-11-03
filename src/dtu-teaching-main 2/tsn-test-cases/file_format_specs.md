@@ -27,7 +27,7 @@ PCP,StreamName,StreamType,SourceNode,DestinationNode,Size,Period,Deadline
 | DestinationNode | Identifier of the destination node (end system) of the stream.                                                       |
 | Size            | Size of the stream's packets in bytes.                                                                               |
 | Period          | Period of the stream in units specified in the configuration file.                                                   |
-| Deadline        | Deadline of the stream in units specified in the configuraion file.                                                 |
+| Deadline        | Deadline of the stream in units specified in the configuration file.                                                 |
 
 **Notes:**
 
