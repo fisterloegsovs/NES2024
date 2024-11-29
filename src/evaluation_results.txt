@@ -1,0 +1,33 @@
+Runtime (seconds): 0.01
+Mean E2E Delay (µs): 37.73
+Maximum E2E Delay for each flow (µs):
+VLAN_0_Flow_0: 30.60
+VLAN_0_Flow_1: 30.60
+VLAN_0_Flow_2: 30.60
+VLAN_0_Flow_3: 30.60
+VLAN_0_Flow_4: 30.60
+VLAN_0_Flow_5: 30.60
+VLAN_0_Flow_6: 30.60
+VLAN_0_Flow_7: 30.60
+VLAN_0_Flow_8: 30.60
+VLAN_0_Flow_9: 30.60
+VLAN_0_Flow_10: 36.90
+VLAN_0_Flow_11: 36.90
+VLAN_0_Flow_12: 36.90
+VLAN_0_Flow_13: 36.90
+VLAN_0_Flow_14: 36.90
+VLAN_0_Flow_15: 36.90
+VLAN_0_Flow_16: 36.90
+VLAN_0_Flow_17: 36.90
+VLAN_0_Flow_18: 36.90
+VLAN_0_Flow_19: 36.90
+VLAN_0_Flow_20: 45.70
+VLAN_0_Flow_21: 45.70
+VLAN_0_Flow_22: 45.70
+VLAN_0_Flow_23: 45.70
+VLAN_0_Flow_24: 45.70
+VLAN_0_Flow_25: 45.70
+VLAN_0_Flow_26: 45.70
+VLAN_0_Flow_27: 45.70
+VLAN_0_Flow_28: 45.70
+VLAN_0_Flow_29: 45.70

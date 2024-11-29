@@ -1,3 +1,4 @@
+#Importing packages
 import csv
 from collections import deque, defaultdict
 import queue
@@ -7,9 +8,11 @@ import time
 import numpy as np
 from dataclasses import dataclass
 
+#File paths
 small_streams_csv = 'small-streams.v2.csv'
 small_topology_csv = 'small-topology.v2.csv'
 
+#Function to read the streams csv file
 def streams_csv(filename):
     try:
         with open(filename, 'r') as f:
@@ -28,6 +31,7 @@ def streams_csv(filename):
         print(f"An error occurred: {e}")
         return []
 
+#Function to read the topology csv file
 def topology_csv(filename):
     try:
         with open(filename, 'r') as f:
@@ -41,18 +45,22 @@ def topology_csv(filename):
         print(f"An error occurred: {e}")
         return []
 
+#Creating the 8 queues 
 queue_dict = defaultdict(lambda: {i: queue.Queue() for i in range(8)})
 
+#Calculating traffic of data streams
 def calculate_r_b(size, period):
     b = size
     r = size / period
     return r, b
 
+#Enumerating the device types
 class Device_Type(Enum):
     NA = 0
     ES = 1
     SW = 2
 
+#Node special methods
 @dataclass
 class Node:
     device_type: Device_Type
@@ -60,6 +68,7 @@ class Node:
     ports: int
     domain: str
 
+#Link special methods
 @dataclass
 class Link:
     link_id: str
@@ -68,7 +77,8 @@ class Link:
     dest_device: str
     dest_port: int
     domain: str
-
+    
+#Defining the stream types
 class Stream_type(Enum):
     NONE = 0
     ATS = 1
