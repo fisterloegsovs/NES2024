@@ -203,13 +203,7 @@ class Network_Graph:
                 b_H += s.size
                 r_H += s.r
 
-        # Calculate effective capacity and validate
-        effective_capacity = link_capacity - r_H
-        if effective_capacity <= 0:
-            raise ValueError(f"Effective capacity is zero or negative: {effective_capacity}. Check stream configurations.")
-
-        # Calculate delays
-        dPQ_TX = b_H / effective_capacity
+        dPQ_TX = b_H / (link_capacity - r_H)
         l_f = stream.size
         dTX_DQ = l_f / link_capacity
 
