@@ -1,18 +1,13 @@
-#Importing packages
 import csv
-from collections import deque, defaultdict
+from collections import defaultdict
 import queue
 from enum import Enum
 import networkx as nx
-import time
-import numpy as np
 from dataclasses import dataclass
 
-#File paths
-small_streams_csv = 'small-streams.v2.csv'
-small_topology_csv = 'small-topology.v2.csv'
+small_streams_csv = 'csv-files/small-streams.v2.csv'
+small_topology_csv = 'csv-files/small-topology.v2.csv'
 
-#Function to read the streams csv file
 def streams_csv(filename):
     try:
         with open(filename, 'r') as f:
@@ -31,7 +26,6 @@ def streams_csv(filename):
         print(f"An error occurred: {e}")
         return []
 
-#Function to read the topology csv file
 def topology_csv(filename):
     try:
         with open(filename, 'r') as f:
@@ -45,22 +39,16 @@ def topology_csv(filename):
         print(f"An error occurred: {e}")
         return []
 
-#Creating the 8 queues 
-queue_dict = defaultdict(lambda: {i: queue.Queue() for i in range(8)})
-
-#Calculating traffic of data streams
 def calculate_r_b(size, period):
     b = size
     r = size / period
     return r, b
 
-#Enumerating the device types
 class Device_Type(Enum):
     NA = 0
     ES = 1
     SW = 2
 
-#Node special methods
 @dataclass
 class Node:
     device_type: Device_Type
@@ -68,7 +56,6 @@ class Node:
     ports: int
     domain: str
 
-#Link special methods
 @dataclass
 class Link:
     link_id: str
@@ -77,8 +64,7 @@ class Link:
     dest_device: str
     dest_port: int
     domain: str
-    
-#Defining the stream types
+
 class Stream_type(Enum):
     NONE = 0
     ATS = 1
@@ -106,6 +92,9 @@ class Network_Graph:
         self.vertices = []
         self.graph = nx.Graph()
         self.stream_delays = {}
+        self.paths = []  # Define paths attribute to store streams
+        self.queues = defaultdict(lambda: defaultdict(lambda: {i: [] for i in range(8)}))
+
 
     def add_edge(self, edge):
         self.edges.append(edge)
@@ -113,6 +102,28 @@ class Network_Graph:
 
     def add_vertex(self, vertex):
         self.vertices.append(vertex)
+        self.graph.add_node(vertex.device_name)
+
+    def add_stream_to_queue(self, stream):
+        source = stream.source_node
+        destination = stream.dest_node
+        pcp = stream.pcp
+
+        # QAR1: Streams from different sources can't share the same queue
+        for other_stream in self.queues[source][destination][pcp]:
+            if other_stream.source_node != source:
+                raise ValueError(f"QAR1 Violated: Stream {stream.stream_name} shares queue with stream from {other_stream.source_node}")
+
+        # QAR2: Streams from the same source but different PCP can't share
+        for priority in range(8):
+            if priority != pcp and self.queues[source][destination][priority]:
+                raise ValueError(f"QAR2 Violated: Stream {stream.stream_name} shares source with different priority stream")
+
+        # Add the stream if QARs hold
+        assert isinstance(stream, Stream), "Only Stream objects should be added to the queue."
+        self.queues[source][destination][pcp].append(stream)
+        print(f"Stream {stream.stream_name} added to queue {pcp} of {source} -> {destination}")
+
 
     def read_topology(self):
         topology = topology_csv(small_topology_csv)
@@ -123,11 +134,13 @@ class Network_Graph:
                         raise IndexError(f"Link row does not have enough columns: {node}")
                     temp_link = Link(node[1], node[2], int(node[3]), node[4], int(node[5]), node[6] if len(node) > 6 else None)
                     self.add_edge(temp_link)
+                    self.graph.add_edge(node[2], node[4])  # Add edge to graph
                 else:
                     device_type = Device_Type.ES if node[0] == 'ES' else Device_Type.SW
                     domain = node[3] if len(node) > 3 else None
                     temp_node = Node(device_type, node[1], int(node[2]), domain)
                     self.add_vertex(temp_node)
+                    self.graph.add_node(node[1])  # Add node to graph
             except IndexError as e:
                 print(f"Error: {e}")
             except ValueError:
@@ -156,6 +169,10 @@ class Network_Graph:
             source = temp_stream.source_node
             destination = temp_stream.dest_node
             
+            if source not in self.graph or destination not in self.graph:
+                print(f"Source {source} or destination {destination} not in graph.")
+                continue
+            
             try:
                 shortest_path = nx.shortest_path(self.graph, source=source, target=destination)
                 print(f"Shortest path for stream {temp_stream.stream_name}: {shortest_path}")
@@ -163,76 +180,57 @@ class Network_Graph:
             except nx.NetworkXNoPath:
                 print(f"No path found for stream {temp_stream.stream_name} from {source} to {destination}")
                 continue
-            
-            # Priority is from 0 to 7 so highest priority is 0 and lowest is 7
-            queue_dict[source][pcp].put(temp_stream) 
-            print(f"Added stream {temp_stream.stream_name} to queue {pcp} of source {source}")
-            self.stream_delays[temp_stream.stream_name] = self.calculate_delay(temp_stream) * 1e6  # Convert to microseconds
+
+            try:
+                self.add_stream_to_queue(temp_stream)
+            except ValueError as e:
+                print(f"Queue assignment error for {temp_stream.stream_name}: {e}")
+                continue
+
+            self.paths.append(temp_stream)  # Add stream to paths
         return self
 
-    def calculate_delay(self, stream):
-            # Ensure link capacity matches previously calculated for the target delay
-            link_capacity = 1000000000  # 1 Gbps
-            
+    def calculate_per_hop_delay(self, stream, source, dest):
+        link_capacity = 10**9/8
+        
+        b_H = 0
+        r_H = 0  
+
+        for pcp in range(stream.pcp + 1, 8):
+            for s in self.queues[source][dest][pcp]:
+                if not isinstance(s, Stream):
+                    raise TypeError(f"Queue contains non-Stream object: {type(s)}")
+                b_H += s.size
+                r_H += s.r
+
+        dPQ_TX = b_H / (link_capacity - r_H)
+        l_f = stream.size
+        dTX_DQ = l_f / link_capacity
+
+        return dPQ_TX + dTX_DQ
+
+    def calculate_worst_case_delay(self):
+        delays = {}
+        for stream in self.paths:
             total_delay = 0
             for i in range(len(stream.path) - 1):
-                source_node = stream.path[i]
-                dest_node = stream.path[i + 1]
-                
-                accumulated_burst = 0
-                for q in queue_dict[source_node].values():
-                    if not q.empty():
-                        head_stream = q.queue[0]
-                        if head_stream.b is not None:
-                            accumulated_burst += head_stream.b
-                
-                remaining_bandwidth = self.calculate_remaining_bandwidth(source_node, link_capacity)
-                if remaining_bandwidth <= 0:
-                    return float('inf')
-                
-                # Transmission delay over link
-                transmission_delay = stream.size / remaining_bandwidth
-                
-                # Queueing delay based on accumulated burst
-                dP_Q_T_X = accumulated_burst / remaining_bandwidth
-                
-                # Shaping delay refinement
-                shaping_delay = stream.period / remaining_bandwidth
-                
-                # Total delay for this hop
-                hop_delay = dP_Q_T_X + transmission_delay + shaping_delay
-                
-                total_delay += hop_delay
-                queue_dict[dest_node][stream.pcp].put(stream)
-
-            return total_delay
-
-    def calculate_remaining_bandwidth(self, source_node, link_capacity):
-        total_reserved_rate = sum(stream.r for q in queue_dict[source_node].values() for stream in q.queue if stream.pcp < 8 and stream.r is not None)
-        remaining_bandwidth = link_capacity - total_reserved_rate
-        return remaining_bandwidth if remaining_bandwidth > 0 else 0
-
-start_time = time.time()
+                source = stream.path[i]
+                dest = stream.path[i + 1]
+                total_delay += self.calculate_per_hop_delay(stream, source, dest)
+            total_delay_microseconds = total_delay * 1e6
+            delays[stream.stream_name] = round(total_delay_microseconds, 3)
+            print(f"Total end-to-end delay for stream {stream.stream_name}: {total_delay_microseconds:.3f} µs")
+        return delays
 
 network_graph = Network_Graph()
 network_graph.read_topology().read_streams()
 
-delays = list(network_graph.stream_delays.values())
-mean_delay = np.mean(delays) if delays else 0
-max_delays = {stream_name: delay for stream_name, delay in network_graph.stream_delays.items()}
-
-end_time = time.time()
-runtime = end_time - start_time
+delays = network_graph.calculate_worst_case_delay()
 
 with open("evaluation_results.txt", "w") as f:
-    f.write(f"Runtime (seconds): {runtime:.2f}\n")
-    f.write(f"Mean E2E Delay (µs): {mean_delay:.2f}\n")
-    f.write("Maximum E2E Delay for each flow (µs):\n")
-    for stream_name, max_delay in max_delays.items():
-        f.write(f"{stream_name}: {max_delay:.2f}\n")
+    for stream_name, delay in delays.items():
+        f.write(f"{stream_name}: {delay:.3f} µs\n")
 
-print(f"Runtime (seconds): {runtime:.2f}")
-print(f"Mean E2E Delay (µs): {mean_delay:.2f}")
-print("Maximum E2E Delay for each flow (µs):")
-for stream_name, max_delay in max_delays.items():
-    print(f"{stream_name}: {max_delay:.2f}")
+print("Worst-case E2E Delays (µs):")
+for stream_name, delay in delays.items():
+    print(f"{stream_name}: {delay:.3f} µs")
