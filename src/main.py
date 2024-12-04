@@ -103,19 +103,21 @@ class Network_Graph:
         self.graph.add_node(vertex.device_name)
 
     def add_stream_to_queue(self, stream):
-        source = stream.source_node
-        destination = stream.dest_node
-        pcp = stream.pcp
+      source = stream.source_node
+      destination = stream.dest_node
+      pcp = stream.pcp
 
-        # QAR2: Streams from the same source but different PCP can't share
-        for priority in range(8):
-            if priority != pcp and self.queues[source][destination][priority]:
-                raise ValueError(f"QAR2 Violated: Stream {stream.stream_name} shares source with different priority stream")
+      # Simplified QAR1: Allow frames from different ingress ports to share the same shaped queues if they have the same priority level
+      # QAR2: Frames from the same source but different PCP can share, but frames from the same source with the same PCP cannot share
+      for qar in self.queues[source][destination][pcp]:
+        if qar.stream_type == stream.stream_type:
+          raise ValueError(f"Stream {stream.stream_name} with PCP {pcp} already exists in queue {pcp} of {source} -> {destination}")
+      
 
-        # Add the stream if QARs hold
-        assert isinstance(stream, Stream), "Only Stream objects should be added to the queue."
-        self.queues[source][destination][pcp].append(stream)
-        print(f"Stream {stream.stream_name} added to queue {pcp} of {source} -> {destination}")
+      # Add the stream if QARs hold
+      assert isinstance(stream, Stream), "Only Stream objects should be added to the queue."
+      self.queues[source][destination][pcp].append(stream)
+      print(f"Stream {stream.stream_name} added to queue {pcp} of {source} -> {destination}")
 
     def aggregate_queues(self):
       aggregated_queues = defaultdict(list)
@@ -150,9 +152,11 @@ class Network_Graph:
 
     def read_streams(self):
         streams = streams_csv(small_streams_csv)
+        unique_pcp_values = set()
         for stream in streams:
             try:
                 pcp = int(stream[0])
+                unique_pcp_values.add(pcp)
                 temp_stream = Stream(
                     pcp,
                     stream[1],
@@ -169,15 +173,15 @@ class Network_Graph:
 
             source = temp_stream.source_node
             destination = temp_stream.dest_node
-            
+
             if source not in self.graph or destination not in self.graph:
                 print(f"Source {source} or destination {destination} not in graph.")
                 continue
-            
+
             try:
                 shortest_path = nx.shortest_path(self.graph, source=source, target=destination)
                 print(f"Shortest path for stream {temp_stream.stream_name}: {shortest_path}")
-                temp_stream.path = shortest_path 
+                temp_stream.path = shortest_path
             except nx.NetworkXNoPath:
                 print(f"No path found for stream {temp_stream.stream_name} from {source} to {destination}")
                 continue
@@ -189,6 +193,9 @@ class Network_Graph:
                 continue
 
             self.paths.append(temp_stream)  # Add stream to paths
+
+        # Initialize queues based on unique PCP values
+        self.queues = defaultdict(lambda: defaultdict(lambda: {pcp: [] for pcp in unique_pcp_values}))
         return self
 
     def calculate_per_hop_delay(self, stream, source, dest):
