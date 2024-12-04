@@ -1,9 +1,8 @@
 import csv
 from collections import defaultdict
-import queue
-from enum import Enum
 import networkx as nx
 from dataclasses import dataclass
+from enum import Enum
 
 small_streams_csv = 'csv-files/small-streams.v2.csv'
 small_topology_csv = 'csv-files/small-topology.v2.csv'
@@ -95,7 +94,6 @@ class Network_Graph:
         self.paths = []  # Define paths attribute to store streams
         self.queues = defaultdict(lambda: defaultdict(lambda: {i: [] for i in range(8)}))
 
-
     def add_edge(self, edge):
         self.edges.append(edge)
         self.graph.add_edge(edge.source_device, edge.dest_device)
@@ -109,11 +107,6 @@ class Network_Graph:
         destination = stream.dest_node
         pcp = stream.pcp
 
-        # QAR1: Streams from different sources can't share the same queue
-        for other_stream in self.queues[source][destination][pcp]:
-            if other_stream.source_node != source:
-                raise ValueError(f"QAR1 Violated: Stream {stream.stream_name} shares queue with stream from {other_stream.source_node}")
-
         # QAR2: Streams from the same source but different PCP can't share
         for priority in range(8):
             if priority != pcp and self.queues[source][destination][priority]:
@@ -124,6 +117,14 @@ class Network_Graph:
         self.queues[source][destination][pcp].append(stream)
         print(f"Stream {stream.stream_name} added to queue {pcp} of {source} -> {destination}")
 
+    def aggregate_queues(self):
+      aggregated_queues = defaultdict(list)
+      for source in self.queues:
+          for dest in self.queues[source]:
+              for pcp in self.queues[source][dest]:
+                  aggregated_queues[pcp].extend(self.queues[source][dest][pcp])
+      return aggregated_queues
+        
 
     def read_topology(self):
         topology = topology_csv(small_topology_csv)
@@ -191,23 +192,27 @@ class Network_Graph:
         return self
 
     def calculate_per_hop_delay(self, stream, source, dest):
-        link_capacity = 10**9/8
+        link_capacity = 100e6  # Link capacity in bps (100 Mbps)
+        processing_delay = 5e-6  # Processing delay in seconds (5 μs)
+
+        # Calculate transmission delay
+        transmission_delay = stream.size * 8 / link_capacity  # Convert size to bits
+
+        # Aggregate all queues
+        aggregated_queues = self.aggregate_queues()
+
+        # Calculate blocking delay
+        blocking_delay = 0
+        for higher_pcp in range(stream.pcp):
+            higher_priority_queue = aggregated_queues.get(higher_pcp, [])
+            blocking_delay += sum([s.size * 8 / link_capacity for s in higher_priority_queue])
         
-        b_H = 0
-        r_H = 0  
+        print(f"Blocking delay from {source} to {dest} for stream {stream.stream_name}: {blocking_delay:.6f} seconds")
 
-        for pcp in range(stream.pcp + 1, 8):
-            for s in self.queues[source][dest][pcp]:
-                if not isinstance(s, Stream):
-                    raise TypeError(f"Queue contains non-Stream object: {type(s)}")
-                b_H += s.size
-                r_H += s.r
-
-        dPQ_TX = b_H / (link_capacity - r_H)
-        l_f = stream.size
-        dTX_DQ = l_f / link_capacity
-
-        return dPQ_TX + dTX_DQ
+        # Total per-hop delay
+        per_hop_delay = processing_delay + transmission_delay + blocking_delay
+        print(f"Per-hop delay from {source} to {dest} for stream {stream.stream_name}: {per_hop_delay:.6f} seconds")
+        return per_hop_delay
 
     def calculate_worst_case_delay(self):
         delays = {}
@@ -216,10 +221,13 @@ class Network_Graph:
             for i in range(len(stream.path) - 1):
                 source = stream.path[i]
                 dest = stream.path[i + 1]
-                total_delay += self.calculate_per_hop_delay(stream, source, dest)
-            total_delay_microseconds = total_delay * 1e6
+                per_hop_delay = self.calculate_per_hop_delay(stream, source, dest)
+                total_delay += per_hop_delay
+
+            total_delay_microseconds = total_delay * 1e6  # Convert to microseconds
             delays[stream.stream_name] = round(total_delay_microseconds, 3)
             print(f"Total end-to-end delay for stream {stream.stream_name}: {total_delay_microseconds:.3f} µs")
+
         return delays
 
 network_graph = Network_Graph()

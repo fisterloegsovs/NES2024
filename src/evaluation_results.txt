@@ -1,3 +1,2 @@
-Stream_1: 18.144 Âµs
-Stream_2: 16.584 Âµs
-Stream_3: 180.720 Âµs
+Stream_f: 375.000 µs
+Stream_g: 410.000 µs
