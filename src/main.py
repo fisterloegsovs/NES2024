@@ -12,9 +12,6 @@ def streams_csv(filename):
         with open(filename, 'r') as f:
             reader = csv.reader(f)
             small_streams = list(reader)
-            # Print the list
-            print(small_streams)
-            # Check if the first row is a header
             if small_streams[0][0] == 'PCP':
                 small_streams = small_streams[1:]  # Skip the header row
         return small_streams
@@ -106,27 +103,17 @@ class Network_Graph:
       source = stream.source_node
       destination = stream.dest_node
       pcp = stream.pcp
-
-      # Simplified QAR1: Allow frames from different ingress ports to share the same shaped queues if they have the same priority level
-      # QAR2: Frames from the same source but different PCP can share, but frames from the same source with the same PCP cannot share
-      for qar in self.queues[source][destination][pcp]:
-        if qar.stream_type == stream.stream_type:
-          raise ValueError(f"Stream {stream.stream_name} with PCP {pcp} already exists in queue {pcp} of {source} -> {destination}")
       
-
-      # Add the stream if QARs hold
-      assert isinstance(stream, Stream), "Only Stream objects should be added to the queue."
       self.queues[source][destination][pcp].append(stream)
-      print(f"Stream {stream.stream_name} added to queue {pcp} of {source} -> {destination}")
 
     def aggregate_queues(self):
-      aggregated_queues = defaultdict(list)
-      for source in self.queues:
-          for dest in self.queues[source]:
-              for pcp in self.queues[source][dest]:
-                  aggregated_queues[pcp].extend(self.queues[source][dest][pcp])
-      return aggregated_queues
-        
+        aggregated_queues = defaultdict(list)
+        for source in self.queues:
+            for dest in self.queues[source]:
+                for pcp, streams in self.queues[source][dest].items():
+                    if streams:  # Only aggregate non-empty queues
+                        aggregated_queues[pcp].extend(streams)
+        return aggregated_queues
 
     def read_topology(self):
         topology = topology_csv(small_topology_csv)
@@ -180,7 +167,6 @@ class Network_Graph:
 
             try:
                 shortest_path = nx.shortest_path(self.graph, source=source, target=destination)
-                print(f"Shortest path for stream {temp_stream.stream_name}: {shortest_path}")
                 temp_stream.path = shortest_path
             except nx.NetworkXNoPath:
                 print(f"No path found for stream {temp_stream.stream_name} from {source} to {destination}")
@@ -194,32 +180,24 @@ class Network_Graph:
 
             self.paths.append(temp_stream)  # Add stream to paths
 
-        # Initialize queues based on unique PCP values
-        self.queues = defaultdict(lambda: defaultdict(lambda: {pcp: [] for pcp in unique_pcp_values}))
         return self
 
     def calculate_per_hop_delay(self, stream, source, dest):
-        link_capacity = 100e6  # Link capacity in bps (100 Mbps)
-        processing_delay = 5e-6  # Processing delay in seconds (5 μs)
-
-        # Calculate transmission delay
-        transmission_delay = stream.size * 8 / link_capacity  # Convert size to bits
-
-        # Aggregate all queues
+        link_capacity = 100e6  # bps
+        processing_delay = 5e-6  # seconds
+        transmission_delay = stream.size * 8 / link_capacity
+        
         aggregated_queues = self.aggregate_queues()
-
-        # Calculate blocking delay
         blocking_delay = 0
+        
         for higher_pcp in range(stream.pcp):
             higher_priority_queue = aggregated_queues.get(higher_pcp, [])
-            blocking_delay += sum([s.size * 8 / link_capacity for s in higher_priority_queue])
-        
-        print(f"Blocking delay from {source} to {dest} for stream {stream.stream_name}: {blocking_delay:.6f} seconds")
+            blocking_delay += sum(s.size * 8 / link_capacity for s in higher_priority_queue)
 
-        # Total per-hop delay
-        per_hop_delay = processing_delay + transmission_delay + blocking_delay
-        print(f"Per-hop delay from {source} to {dest} for stream {stream.stream_name}: {per_hop_delay:.6f} seconds")
-        return per_hop_delay
+
+        total_per_hop_delay = processing_delay + transmission_delay + blocking_delay
+        return total_per_hop_delay
+
 
     def calculate_worst_case_delay(self):
         delays = {}
@@ -231,21 +209,29 @@ class Network_Graph:
                 per_hop_delay = self.calculate_per_hop_delay(stream, source, dest)
                 total_delay += per_hop_delay
 
-            total_delay_microseconds = total_delay * 1e6  # Convert to microseconds
-            delays[stream.stream_name] = round(total_delay_microseconds, 3)
+            total_delay_microseconds = total_delay * 1e6
+            delays[stream.stream_name] = total_delay_microseconds
             print(f"Total end-to-end delay for stream {stream.stream_name}: {total_delay_microseconds:.3f} µs")
 
         return delays
 
-network_graph = Network_Graph()
-network_graph.read_topology().read_streams()
+def run_simulation():
+    network_graph = Network_Graph()
+    network_graph.read_topology().read_streams()
 
-delays = network_graph.calculate_worst_case_delay()
+    delays = network_graph.calculate_worst_case_delay()
 
-with open("evaluation_results.txt", "w") as f:
+    # we need: 
+    with open("evaluation_results.txt", "w") as f:
+        for stream_name, delay in delays.items():
+            f.write(f"{stream_name}: {delay:.3f} µs\n")
+        f.write
+
+    print("Worst-case E2E Delays (µs):")
     for stream_name, delay in delays.items():
-        f.write(f"{stream_name}: {delay:.3f} µs\n")
+        print(f"{stream_name}: {delay:.3f} µs")
 
-print("Worst-case E2E Delays (µs):")
-for stream_name, delay in delays.items():
-    print(f"{stream_name}: {delay:.3f} µs")
+
+
+run_simulation()  
+
