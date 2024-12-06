@@ -212,8 +212,7 @@ class Network_Graph:
 
             total_delay_microseconds = total_delay * 1e6
             delays[stream.stream_name] = total_delay_microseconds
-            print(f"Total end-to-end delay for stream {stream.stream_name}: {total_delay_microseconds:.3f} µs")
-
+            
         return delays
 
 def run_simulation_and_print_output_file():
@@ -234,11 +233,6 @@ def run_simulation_and_print_output_file():
         f.write(f"Mean E2E delay of the solution: {mean_e2e_delay:.3f} µs\n")
         for stream_name, delay in delays.items():
             f.write(f"{stream_name}: {delay:.3f} µs\n")
-
-    print("Worst-case E2E Delays (µs):")
-    for stream_name, delay in delays.items():
-        print(f"{stream_name}: {delay:.3f} µs")
-
 
 run_simulation_and_print_output_file()
 

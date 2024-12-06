@@ -1,4 +1,4 @@
-Runtime for generating the solution: 0.001 seconds
+Runtime for generating the solution: 0.007 seconds
 Mean E2E delay of the solution: 392.500 µs
 Stream_f: 375.000 µs
 Stream_g: 410.000 µs
