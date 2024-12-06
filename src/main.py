@@ -14,7 +14,7 @@ def streams_csv(filename):
             reader = csv.reader(f)
             small_streams = list(reader)
             if small_streams[0][0] == 'PCP':
-                small_streams = small_streams[1:]  # Skip the header row
+                small_streams = small_streams[1:]
         return small_streams
     except FileNotFoundError:
         print(f"File {filename} not found.")
@@ -89,7 +89,7 @@ class Network_Graph:
         self.vertices = []
         self.graph = nx.Graph()
         self.stream_delays = {}
-        self.paths = []  # Define paths attribute to store streams
+        self.paths = []
         self.queues = defaultdict(lambda: defaultdict(lambda: {i: [] for i in range(8)}))
 
     def add_edge(self, edge):
@@ -125,13 +125,13 @@ class Network_Graph:
                         raise IndexError(f"Link row does not have enough columns: {node}")
                     temp_link = Link(node[1], node[2], int(node[3]), node[4], int(node[5]), node[6] if len(node) > 6 else None)
                     self.add_edge(temp_link)
-                    self.graph.add_edge(node[2], node[4])  # Add edge to graph
+                    self.graph.add_edge(node[2], node[4])
                 else:
                     device_type = Device_Type.ES if node[0] == 'ES' else Device_Type.SW
                     domain = node[3] if len(node) > 3 else None
                     temp_node = Node(device_type, node[1], int(node[2]), domain)
                     self.add_vertex(temp_node)
-                    self.graph.add_node(node[1])  # Add node to graph
+                    self.graph.add_node(node[1])
             except IndexError as e:
                 print(f"Error: {e}")
             except ValueError:
@@ -179,13 +179,13 @@ class Network_Graph:
                 print(f"Queue assignment error for {temp_stream.stream_name}: {e}")
                 continue
 
-            self.paths.append(temp_stream)  # Add stream to paths
+            self.paths.append(temp_stream)
 
         return self
 
     def calculate_per_hop_delay(self, stream, source, dest):
-        link_capacity = 100e6  # bps
-        processing_delay = 5e-6  # seconds
+        link_capacity = 100e6
+        processing_delay = 5e-6
         transmission_delay = stream.size * 8 / link_capacity
         
         aggregated_queues = self.aggregate_queues()
@@ -210,7 +210,7 @@ class Network_Graph:
                 per_hop_delay = self.calculate_per_hop_delay(stream, source, dest)
                 total_delay += per_hop_delay
 
-            total_delay_microseconds = total_delay * 1e6  # Convert to microseconds
+            total_delay_microseconds = total_delay * 1e6
             delays[stream.stream_name] = total_delay_microseconds
             print(f"Total end-to-end delay for stream {stream.stream_name}: {total_delay_microseconds:.3f} µs")
 
