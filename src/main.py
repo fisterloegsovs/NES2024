@@ -3,6 +3,7 @@ from collections import defaultdict
 import networkx as nx
 from dataclasses import dataclass
 from enum import Enum
+import time
 
 small_streams_csv = 'csv-files/small-streams.v2.csv'
 small_topology_csv = 'csv-files/small-topology.v2.csv'
@@ -209,29 +210,35 @@ class Network_Graph:
                 per_hop_delay = self.calculate_per_hop_delay(stream, source, dest)
                 total_delay += per_hop_delay
 
-            total_delay_microseconds = total_delay * 1e6
+            total_delay_microseconds = total_delay * 1e6  # Convert to microseconds
             delays[stream.stream_name] = total_delay_microseconds
             print(f"Total end-to-end delay for stream {stream.stream_name}: {total_delay_microseconds:.3f} µs")
 
         return delays
 
-def run_simulation():
+def run_simulation_and_print_output_file():
+    start_time = time.time()
+
     network_graph = Network_Graph()
     network_graph.read_topology().read_streams()
 
     delays = network_graph.calculate_worst_case_delay()
 
-    # we need: 
+    end_time = time.time()
+    runtime = end_time - start_time
+
+    mean_e2e_delay = sum(delays.values()) / len(delays) if delays else 0
+
     with open("evaluation_results.txt", "w") as f:
+        f.write(f"Runtime for generating the solution: {runtime:.3f} seconds\n")
+        f.write(f"Mean E2E delay of the solution: {mean_e2e_delay:.3f} µs\n")
         for stream_name, delay in delays.items():
             f.write(f"{stream_name}: {delay:.3f} µs\n")
-        f.write
 
     print("Worst-case E2E Delays (µs):")
     for stream_name, delay in delays.items():
         print(f"{stream_name}: {delay:.3f} µs")
 
 
-
-run_simulation()  
+run_simulation_and_print_output_file()
 
